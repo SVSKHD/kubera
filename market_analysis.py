@@ -49,6 +49,21 @@ def ichimoku_cloud(df):
     return df
 
 # Strategy decision based on indicators and volume
+def analyze_trends(symbol, timeframe, fast_period=50, slow_period=200):
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, slow_period + 100)
+    df = pd.DataFrame(rates)
+    df['fast_ma'] = df['close'].rolling(window=fast_period).mean()
+    df['slow_ma'] = df['close'].rolling(window=slow_period).mean()
+
+    trend = None
+    if df['fast_ma'].iloc[-1] > df['slow_ma'].iloc[-1] and df['fast_ma'].iloc[-2] <= df['slow_ma'].iloc[-2]:
+        trend = 'upward'
+    elif df['fast_ma'].iloc[-1] < df['slow_ma'].iloc[-1] and df['fast_ma'].iloc[-2] >= df['slow_ma'].iloc[-2]:
+        trend = 'downward'
+
+    return trend
+
+# Strategy decision based on indicators, volume, and trend
 def strategy_decision(symbol, timeframe, pip_threshold=15):
     rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 52 + 100)
     df = pd.DataFrame(rates)
@@ -57,6 +72,7 @@ def strategy_decision(symbol, timeframe, pip_threshold=15):
     rsi = calculate_rsi(symbol, timeframe)
     ichimoku_df = ichimoku_cloud(df)
     obv = calculate_obv(df)  # Calculate OBV
+    trend = analyze_trends(symbol, timeframe)  # Analyze market trend
 
     last_candle = df.iloc[-1]
     prev_candle = df.iloc[-2]
@@ -64,7 +80,6 @@ def strategy_decision(symbol, timeframe, pip_threshold=15):
     volume_diff = abs(last_candle['real_volume'] - prev_candle['real_volume'])
 
     live_price = last_candle['close']
-
     high = df['high'].iloc[-10:].max()
     low = df['low'].iloc[-10:].min()
     fib_levels = fibonacci_levels(high, low)
@@ -80,13 +95,18 @@ def strategy_decision(symbol, timeframe, pip_threshold=15):
         strategies_passed.append('Tenkan-sen > Kijun-sen')
     if volume_diff > 0:
         strategies_passed.append('Volume Increase')
-    if obv > df['obv'].iloc[-2]:  # Check if OBV is increasing
+    if obv > df['obv'].iloc[-2]:
         strategies_passed.append('Increasing OBV')
+    if trend == 'upward':
+        strategies_passed.append('Upward Trend')
+    elif trend == 'downward':
+        strategies_passed.append('Downward Trend')
 
     decision = 'hold'
     if strategies_passed and pip_movement >= pip_threshold:
-        decision = 'buy' if 'MACD > Signal' in strategies_passed and 'Above 61.8% Fibonacci' in strategies_passed and 'Increasing OBV' in strategies_passed else 'sell'
+        if 'MACD > Signal' in strategies_passed and 'Above 61.8% Fibonacci' in strategies_passed and 'Increasing OBV' in strategies_passed:
+            decision = 'buy' if 'Upward Trend' in strategies_passed else 'sell'
 
-    print(f"Symbol: {symbol}, Live Price: {live_price}, Strategies Passed: {', '.join(strategies_passed) if strategies_passed else 'None'}, Pip Difference: {pip_movement:.2f}, Volume Difference: {volume_diff}, OBV: {obv}, Trade Decision: {decision.upper()}")
+    print(f"Symbol: {symbol}, Live Price: {live_price}, Strategies Passed: {', '.join(strategies_passed) if strategies_passed else 'None'}, Pip Difference: {pip_movement:.2f}, Volume Difference: {volume_diff}, OBV: {obv}, Trend: {trend}, Trade Decision: {decision.upper()}")
 
     return decision

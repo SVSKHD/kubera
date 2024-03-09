@@ -6,6 +6,8 @@ lock = threading.Lock()
 initial_balance = None
 trading_paused = False
 profit_target = 0
+max_trades_per_symbol = 4
+trades = {}  # Dictionary to keep track of trades per symbol
 
 def startup_check():
     global initial_balance
@@ -26,6 +28,12 @@ def place_trade(symbol, trade_type, volume, price, deviation, stop_loss_distance
     with lock:
         if trading_paused:
             print(f"Trading is paused. No new trades for {symbol}.")
+            return None
+
+        # Check for existing live trades for the symbol
+        existing_positions = mt5.positions_get(symbol=symbol)
+        if existing_positions:
+            print(f"There are already live trades for {symbol}. No new trades will be placed.")
             return None
 
         order_type = mt5.ORDER_TYPE_BUY if trade_type == "BUY" else mt5.ORDER_TYPE_SELL
@@ -56,7 +64,9 @@ def place_trade(symbol, trade_type, volume, price, deviation, stop_loss_distance
             return None
         else:
             print(f"Trade for {symbol} placed successfully. Ticket: {result.order}")
+            trades[symbol] = [result.order]  # Update the trades dictionary with the new trade
             return result.order
+
 
 def close_trade(position_ticket):
     with lock:
@@ -87,15 +97,33 @@ def close_trade(position_ticket):
             print(f"Failed to close trade {position_ticket}, Error: {mt5.last_error()}")
         else:
             print(f"Trade {position_ticket} closed successfully.")
+            for symbol, ticket_list in trades.items():
+                if position_ticket in ticket_list:
+                    ticket_list.remove(position_ticket)
+                    print(f"Trade {position_ticket} for {symbol} closed and removed from tracking.")
+                    break
 
 def check_daily_loss():
     global initial_balance, trading_paused, profit_target
+    
     if initial_balance is None:
         print("Initial balance not set, cannot check daily loss.")
         return False
 
-    current_balance = mt5.account_info().balance
-    current_loss = initial_balance - current_balance
+    # Fetch current balance and floating P/L
+    account_info = mt5.account_info()
+    if account_info is None:
+        print("Failed to get current account info.")
+        return False
+
+    current_balance = account_info.balance
+    floating_profit = account_info.profit  # Include floating profits/losses
+
+    # Adjust the current balance by including floating profits/losses
+    adjusted_balance = current_balance + floating_profit
+
+    # Calculate the loss based on adjusted balance
+    current_loss = initial_balance - adjusted_balance
     loss_limit = initial_balance * 0.05
 
     if current_loss > loss_limit:
@@ -108,6 +136,7 @@ def check_daily_loss():
             profit_target = initial_balance * 1.15
 
     return trading_paused
+
 
 def check_daily_profit():
     global initial_balance, trading_paused, profit_target
@@ -128,5 +157,7 @@ def close_all_trades(symbol):
             for position in positions:
                 close_trade(position.ticket)
             print(f"All trades for {symbol} closed.")
+            if symbol in trades:
+                del trades[symbol]
         else:
             print(f"No open positions found for {symbol}.")
