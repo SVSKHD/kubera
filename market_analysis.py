@@ -2,7 +2,7 @@ import MetaTrader5 as mt5
 import pandas as pd
 
 # Calculate MACD
-def calculate_macd(symbol, timeframe, fast_ema_period=12, slow_ema_period=26, signal_period=9):
+def calculate_macd(symbol, timeframe, fast_ema_period=9, slow_ema_period=17, signal_period=7):
     rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, slow_ema_period + 100)
     df = pd.DataFrame(rates)
     df['fast_ema'] = df['close'].ewm(span=fast_ema_period, adjust=False).mean()
