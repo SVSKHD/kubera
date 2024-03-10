@@ -2,7 +2,7 @@ import MetaTrader5 as mt5
 import time
 from datetime import datetime
 import pytz
-import market_analysis as ma  # Ensure this is correctly imported
+import market_analysis as ma  # Assume this uses the simplified strategy
 import trade_management as tm
 
 # Initialize the trading environment
@@ -22,7 +22,8 @@ def get_symbols_for_today():
     return weekend_symbols if day_of_week in [5, 6] else weekday_symbols
 
 def adjust_pip_threshold(symbol):
-    return 0.0001 if symbol in ["EURUSD", "ETHUSD", "BTCUSD"] else 0.01  # Adjusted for clarity
+    # Adjust pip threshold based on the currency pair's volatility and market convention
+    return 0.0001 if symbol in ["EURUSD", "GBPUSD", "USDJPY"] else 0.01  # Adjusted for crypto and less volatile pairs
 
 try:
     while True:
@@ -36,18 +37,23 @@ try:
             decision = ma.strategy_decision(symbol, timeframe, pip_threshold=pip_threshold)
             print(f"Strategy decision for {symbol}: {decision}")
 
-            volume = 0.1  # Example volume
-            deviation = 20  # Example max price deviation
+            volume = 0.1  # Define trade volume
+            deviation = 20  # Set max price deviation
+            # Fetch the current market price for the symbol
+            current_price = mt5.symbol_info_tick(symbol).ask if decision == "BUY" else mt5.symbol_info_tick(symbol).bid
+
+
 
             if decision == "buy":
-                tm.place_trade(symbol, "BUY", volume, deviation=deviation)
+                tm.place_trade(symbol, "BUY", volume, price=current_price , deviation=deviation)
             elif decision == "sell":
-                tm.place_trade(symbol, "SELL", volume, deviation=deviation)
+                tm.place_trade(symbol, "SELL", volume, price=current_price ,deviation=deviation)
 
+            # Functions to check daily profit or loss and take action if needed
             tm.check_daily_loss()
             tm.check_daily_profit()
 
-        time.sleep(30)  # Monitor every 5 seconds
+        time.sleep(30)  # Pause the script for 30 seconds before the next cycle
 
 except KeyboardInterrupt:
     print("Script interrupted by user. Closing all trades.")

@@ -16,7 +16,7 @@ def calculate_rsi(symbol, timeframe, period=14):
 def calculate_obv(df):
     df['daily_return'] = df['close'].diff()
     df['direction'] = df['daily_return'].apply(lambda x: 1 if x > 0 else -1 if x < 0 else 0)
-    df['adjusted_volume'] = df['direction'] * df['volume']
+    df['adjusted_volume'] = df['direction'] * df['tick_volume']  # Adjusted to use 'tick_volume'
     df['obv'] = df['adjusted_volume'].cumsum()
     return df['obv'].iloc[-1]
 
