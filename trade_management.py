@@ -92,16 +92,16 @@ def close_trade(position_ticket):
             "type_time": mt5.ORDER_TIME_GTC,
         }
 
+        print(f"Sending close request for {position.symbol}, Ticket: {position.ticket}, Volume: {position.volume}, Price: {price}")
+
         result = mt5.order_send(request)
         if result.retcode != mt5.TRADE_RETCODE_DONE:
             print(f"Failed to close trade {position_ticket}, Error: {mt5.last_error()}")
         else:
             print(f"Trade {position_ticket} closed successfully.")
-            for symbol, ticket_list in trades.items():
-                if position_ticket in ticket_list:
-                    ticket_list.remove(position_ticket)
-                    print(f"Trade {position_ticket} for {symbol} closed and removed from tracking.")
-                    break
+            if position.symbol in trades:
+                trades[position.symbol].remove(position.ticket)
+                print(f"Trade {position.ticket} for {position.symbol} closed and removed from tracking.")
 
 def check_daily_loss():
     global initial_balance, trading_paused, profit_target
@@ -154,10 +154,9 @@ def close_all_trades(symbol):
     with lock:
         positions = mt5.positions_get(symbol=symbol)
         if positions:
+            print(f"Found {len(positions)} open positions for {symbol}. Closing all.")
             for position in positions:
                 close_trade(position.ticket)
-            print(f"All trades for {symbol} closed.")
-            if symbol in trades:
-                del trades[symbol]
         else:
             print(f"No open positions found for {symbol}.")
+
